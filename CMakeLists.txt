@@ -8,6 +8,18 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(oxebots_interfaces REQUIRED)
+
+include_directories(
+  include
+)
+
+add_executable(
+  game_observer_node
+  src/game_observer_node.cpp
+)
+
+ament_target_dependencies(game_observer_node rclcpp oxebots_interfaces)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
