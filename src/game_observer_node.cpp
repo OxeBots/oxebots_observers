@@ -8,6 +8,7 @@ GameObserverNode::GameObserverNode() : Node("game_observer_node")
     declare_parameter("subscriber_ball_topic", "ball_data");
     declare_parameter("publisher_topic", "game_data");
     declare_parameter("topic_retention", 10);
+    declare_parameter("team_size", 3);
 
     RCLCPP_DEBUG(get_logger(), "Creating the publisher...");
 
