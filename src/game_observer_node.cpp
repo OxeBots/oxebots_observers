@@ -92,6 +92,8 @@ void GameObserverNode::validate_data()
         is_ball_present = false;
         allies_count = 0;
         enemies_count = 0;
+        allies.clear();
+        enemies.clear();
     }
     else
         RCLCPP_DEBUG(get_logger(), "Data not complete yet...");
