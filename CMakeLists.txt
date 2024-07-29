@@ -5,9 +5,35 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
+if(NOT CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD 17)
+endif()
+
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(oxebots_interfaces REQUIRED)
+
+include_directories(
+  include
+)
+
+add_executable(
+  game_observer_node
+  src/game_observer_node.cpp
+)
+
+ament_target_dependencies(game_observer_node rclcpp oxebots_interfaces)
+
+install(TARGETS
+    game_observer_node
+    DESTINATION lib/${PROJECT_NAME}
+)
+
+install(
+    DIRECTORY include/
+    DESTINATION include
+)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
