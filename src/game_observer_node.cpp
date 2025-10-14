@@ -43,8 +43,8 @@ GameObserverNode::GameObserverNode()
 
   RCLCPP_DEBUG(get_logger(), "Initializing the structures...");
   team_size = get_parameter("team_size").as_int();
-  allies.reserve(team_size);
-  enemies.reserve(team_size);
+  //allies.resize(team_size);
+  //enemies.resize(team_size);
 
   RCLCPP_INFO(get_logger(), "Game Observer Node Started");
 }
@@ -54,26 +54,27 @@ GameObserverNode::~GameObserverNode()
   RCLCPP_INFO(this->get_logger(), "Game Observer Node Stopped");
 }
 
+// game_observer_node.cpp
+
 void GameObserverNode::robot_callback(const oxebots_interfaces::msg::RobotPosition::SharedPtr msg)
 {
   RCLCPP_DEBUG(get_logger(), "Robot data received");
-  int index = 0;
-  for (auto ally : msg.get()->allies) {
-    index = contains_robot(allies, ally);
-    if (index == -1) {
-      allies.push_back(ally);
-      allies_count++;
-    } else {
-      allies[index] = ally;
+
+  // Atualiza ou insere aliados
+  for (const auto & ally_robot : msg->allies) {
+    int id = ally_robot.id;
+
+    // Condição: Atualize o robô se ele já existe, OU adicione-o se for novo E houver espaço.
+    if (allies.count(id) || allies.size() < team_size) {
+      allies[id] = ally_robot;
     }
   }
-  for (auto enemy : msg.get()->enemies) {
-    index = contains_robot(enemies, enemy);
-    if (index == -1) {
-      enemies.push_back(enemy);
-      enemies_count++;
-    } else {
-      enemies[index] = enemy;
+
+  // Atualiza ou insere inimigos
+  for (const auto & enemy_robot : msg->enemies) {
+    int id = enemy_robot.id;
+    if (enemies.count(id) || enemies.size() < team_size) {
+      enemies[id] = enemy_robot;
     }
   }
 
@@ -90,29 +91,41 @@ void GameObserverNode::ball_callback(const oxebots_interfaces::msg::BallPosition
 
 void GameObserverNode::validate_data()
 {
-  if (is_ball_present && allies_count == team_size && enemies_count == team_size) {
+  if (is_ball_present) {
     publish_game_data();
+    // Os dados dos robôs são mantidos. Apenas resetamos os contadores de recebimento.
     is_ball_present = false;
-    allies_count = 0;
-    enemies_count = 0;
-    allies.clear();
-    enemies.clear();
   } else {
     RCLCPP_DEBUG(get_logger(), "Data not complete yet...");
   }
 }
 
+// game_observer_node.cpp
+
 void GameObserverNode::publish_game_data()
 {
   RCLCPP_DEBUG(get_logger(), "Publishing game data...");
   oxebots_interfaces::msg::GameData game_data;
-  game_data.robots.allies = allies;
-  game_data.robots.enemies = enemies;
+
+  // Converte o mapa de aliados para um vetor
+  std::vector<oxebots_interfaces::msg::RobotGameData> allies_vec;
+  for (const auto& pair : allies) {
+    allies_vec.push_back(pair.second); // pair.second contém o objeto RobotGameData
+  }
+
+  // Converte o mapa de inimigos para um vetor
+  std::vector<oxebots_interfaces::msg::RobotGameData> enemies_vec;
+  for (const auto& pair : enemies) {
+    enemies_vec.push_back(pair.second);
+  }
+
+  game_data.robots.allies = allies_vec;
+  game_data.robots.enemies = enemies_vec;
   game_data.ball = ball_data;
   game_publisher->publish(game_data);
 }
 
-int GameObserverNode::contains_robot(
+/*int GameObserverNode::contains_robot(
   const std::vector<oxebots_interfaces::msg::RobotGameData> & robots,
   const oxebots_interfaces::msg::RobotGameData & robot)
 {
@@ -123,7 +136,7 @@ int GameObserverNode::contains_robot(
   } else {
     return -1;
   }
-}
+}*/
 
 int main(int argc, char * argv[])
 {
