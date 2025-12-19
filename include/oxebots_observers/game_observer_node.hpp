@@ -25,6 +25,9 @@
 #include "oxebots_interfaces/msg/game_data.hpp"
 #include "oxebots_interfaces/msg/robot_game_data.hpp"
 #include "oxebots_interfaces/msg/robot_position.hpp"
+#include "oxebots_interfaces/msg/ssl_geometry_data.hpp"
+#include "nav_msgs/msg/occupancy_grid.hpp"
+#include <optional>
 
 class GameObserverNode : public rclcpp::Node
 {
@@ -35,18 +38,26 @@ public:
 private:
   rclcpp::Subscription<oxebots_interfaces::msg::RobotPosition>::SharedPtr robot_subscriber;
   rclcpp::Subscription<oxebots_interfaces::msg::BallPosition>::SharedPtr ball_subscriber;
+  rclcpp::Subscription<oxebots_interfaces::msg::SSLGeometryData>::SharedPtr geometry_subscriber;
   rclcpp::Publisher<oxebots_interfaces::msg::GameData>::SharedPtr game_publisher;
+  rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr map_publisher;
   std::map<int, oxebots_interfaces::msg::RobotGameData> allies;
   std::map<int, oxebots_interfaces::msg::RobotGameData> enemies;
   oxebots_interfaces::msg::BallPosition ball_data;
+
+  std::optional<oxebots_interfaces::msg::SSLGeometryData> last_geometry_data_;
 
   void robot_callback(const oxebots_interfaces::msg::RobotPosition::SharedPtr msg);
 
   void ball_callback(const oxebots_interfaces::msg::BallPosition::SharedPtr msg);
 
+  void geometry_callback(const oxebots_interfaces::msg::SSLGeometryData::SharedPtr msg);
+
   void validate_data();
 
   void publish_game_data();
+
+  void publish_occupancy_grid_map();
 
   //int contains_robot(
   //  const std::vector<oxebots_interfaces::msg::RobotGameData> & robots,
