@@ -169,8 +169,6 @@ void GameObserverNode::publish_occupancy_grid_map()
 
   map_msg.data.assign(map_width_cells * map_height_cells, 0); // Initialize with free space (0)
 
-
-
   // Mark robots as obstacles
   double robot_radius_m = mm_to_m(field_geometry.max_robot_radius > 0 ? field_geometry.max_robot_radius : 90.0);
   int robot_radius_cells = static_cast<int>(robot_radius_m / map_resolution);
@@ -203,7 +201,6 @@ void GameObserverNode::publish_occupancy_grid_map()
   }
 
   map_publisher->publish(map_msg);
-  RCLCPP_INFO(get_logger(), "Published OccupancyGrid map (Resolution: %.2f, Size: %u x %u)", map_resolution, map_width_cells, map_height_cells);
 }
 
 
