@@ -97,7 +97,7 @@ void GameObserverNode::ball_callback(const oxebots_interfaces::msg::BallPosition
 
 void GameObserverNode::geometry_callback(const oxebots_interfaces::msg::SSLGeometryData::SharedPtr msg)
 {
-  RCLCPP_INFO(get_logger(), "Field Geometry received!");
+  RCLCPP_DEBUG(get_logger(), "Field Geometry received!");
   last_geometry_data_ = *msg;
   // No need to call validate_data here, as map is generated only when robots/ball data arrive
 }
