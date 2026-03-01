@@ -106,11 +106,15 @@ void GameObserverNode::geometry_callback(const oxebots_interfaces::msg::SSLGeome
 void GameObserverNode::validate_data()
 {
   if (is_ball_present && last_geometry_data_.has_value()) {
+    RCLCPP_INFO_ONCE(get_logger(), "Dados completos recebidos! Iniciando publicação do mapa e game_data.");
     publish_game_data();
     publish_occupancy_grid_map();
     is_ball_present = false;
   } else {
-    RCLCPP_DEBUG(get_logger(), "Data not complete yet (ball: %d, geometry: %d)...", is_ball_present, last_geometry_data_.has_value());
+    static int count = 0;
+    if (count++ % 100 == 0) {
+        RCLCPP_INFO(get_logger(), "Aguardando dados... (bola: %d, geometria: %d)", is_ball_present, last_geometry_data_.has_value());
+    }
   }
 }
 
@@ -199,6 +203,30 @@ void GameObserverNode::publish_occupancy_grid_map()
   for (const auto& pair : enemies) {
     mark_robot_as_obstacle(pair.second.x, pair.second.y);
   }
+
+  auto mark_ball_as_obstacle = [&](double rx_mm, double ry_mm) {
+    double rx_m = mm_to_m(rx_mm);
+    double ry_m = mm_to_m(ry_mm);
+    double ball_obstacle_radius_m = 0.10; // 100mm radius for the ball obstacle
+    int ball_radius_cells = static_cast<int>(ball_obstacle_radius_m / map_resolution);
+
+    int gx = static_cast<int>((rx_m - map_msg.info.origin.position.x) / map_resolution);
+    int gy = static_cast<int>((ry_m - map_msg.info.origin.position.y) / map_resolution);
+
+    for (int dx = -ball_radius_cells; dx <= ball_radius_cells; ++dx) {
+      for (int dy = -ball_radius_cells; dy <= ball_radius_cells; ++dy) {
+        int current_gx = gx + dx;
+        int current_gy = gy + dy;
+        if (current_gx >= 0 && current_gx < static_cast<int>(map_width_cells) &&
+            current_gy >= 0 && current_gy < static_cast<int>(map_height_cells)) {
+          map_msg.data[current_gx + current_gy * map_width_cells] = 100;
+        }
+      }
+    }
+  };
+
+  // Mark the ball as an obstacle
+  mark_ball_as_obstacle(ball_data.x, ball_data.y);
 
   map_publisher->publish(map_msg);
 }
