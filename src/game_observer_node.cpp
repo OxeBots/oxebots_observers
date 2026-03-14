@@ -152,10 +152,15 @@ void GameObserverNode::publish_occupancy_grid_map()
   // Convert field dimensions from mm to meters
   double field_length_m = mm_to_m(field_geometry.field_length);
   double field_width_m = mm_to_m(field_geometry.field_width);
+  
+  // Adicionar margem de 60cm em todas as direções (total de 1.2m extras por eixo)
+  double margin_m = 0.6;
+  double total_length_m = field_length_m + (2.0 * margin_m);
+  double total_width_m = field_width_m + (2.0 * margin_m);
 
   // Calculate map dimensions in cells
-  unsigned int map_width_cells = static_cast<unsigned int>(field_length_m / map_resolution);
-  unsigned int map_height_cells = static_cast<unsigned int>(field_width_m / map_resolution);
+  unsigned int map_width_cells = static_cast<unsigned int>(total_length_m / map_resolution);
+  unsigned int map_height_cells = static_cast<unsigned int>(total_width_m / map_resolution);
 
   nav_msgs::msg::OccupancyGrid map_msg;
   map_msg.header.frame_id = "map";
@@ -166,8 +171,8 @@ void GameObserverNode::publish_occupancy_grid_map()
   map_msg.info.height = map_height_cells;
 
   // Set map origin (center of the field is (0,0) in world coordinates)
-  map_msg.info.origin.position.x = -field_length_m / 2.0;
-  map_msg.info.origin.position.y = -field_width_m / 2.0;
+  map_msg.info.origin.position.x = -total_length_m / 2.0;
+  map_msg.info.origin.position.y = -total_width_m / 2.0;
   map_msg.info.origin.position.z = 0.0;
   map_msg.info.origin.orientation.w = 1.0; // No rotation
 
@@ -201,6 +206,10 @@ void GameObserverNode::publish_occupancy_grid_map()
   };
 
   for (const auto& pair : enemies) {
+    mark_robot_as_obstacle(pair.second.x, pair.second.y);
+  }
+
+  for (const auto& pair : allies) {
     mark_robot_as_obstacle(pair.second.x, pair.second.y);
   }
 

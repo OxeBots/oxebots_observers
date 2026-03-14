@@ -14,6 +14,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(oxebots_interfaces REQUIRED)
 find_package(nav_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 
@@ -28,8 +29,16 @@ add_executable(
 
 ament_target_dependencies(game_observer_node rclcpp oxebots_interfaces nav_msgs tf2 tf2_geometry_msgs)
 
+add_executable(
+  field_visualizer_node
+  src/field_visualizer_node.cpp
+)
+
+ament_target_dependencies(field_visualizer_node rclcpp visualization_msgs geometry_msgs)
+
 install(TARGETS
     game_observer_node
+    field_visualizer_node
     DESTINATION lib/${PROJECT_NAME}
 )
 
