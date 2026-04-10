@@ -32,6 +32,7 @@ GameObserverNode::GameObserverNode()
   declare_parameter("topic_retention", 10);
   declare_parameter("team_size", 3);
   declare_parameter("map_resolution", 0.05); // 5 cm per cell
+  declare_parameter("robot_inflation_radius", 150.0); // 150mm de raio para evitar colisões entre robôs
 
   RCLCPP_DEBUG(get_logger(), "Creating the publishers...");
 
@@ -178,8 +179,8 @@ void GameObserverNode::publish_occupancy_grid_map()
 
   map_msg.data.assign(map_width_cells * map_height_cells, 0); // Initialize with free space (0)
 
-  // Mark robots as obstacles
-  double robot_radius_m = mm_to_m(field_geometry.max_robot_radius > 0 ? field_geometry.max_robot_radius : 90.0);
+  // Mark robots as obstacles with inflation for safety
+  double robot_radius_m = mm_to_m(get_parameter("robot_inflation_radius").as_double());
   int robot_radius_cells = static_cast<int>(robot_radius_m / map_resolution);
 
   auto mark_robot_as_obstacle = [&](double rx_mm, double ry_mm) {
