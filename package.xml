@@ -5,20 +5,18 @@
   <version>0.0.0</version>
   <description>This package is part of the OxeBots SSL RoboCup league, designed to interface with
     the communication system to extract and interpret game object states in real-time.</description>
-  <maintainer email="ce.cesc01@gmail.com">carlos</maintainer>
+  <maintainer email="contato@oxebots.com.br">oxebots</maintainer>
   <license>GPLv3</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>rclcpp</depend>
   <depend>oxebots_interfaces</depend>
+  <depend>ssl_league_msgs</depend> <!-- Dependência do novo bridge -->
   <depend>nav_msgs</depend>
   <depend>visualization_msgs</depend>
   <depend>tf2</depend>
   <depend>tf2_geometry_msgs</depend>
-
-  <test_depend>ament_lint_auto</test_depend>
-  <test_depend>ament_lint_common</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>
