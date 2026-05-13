@@ -7,6 +7,7 @@ constexpr double mm_to_m(double mm) { return mm / 1000.0; }
 GameObserverNode::GameObserverNode() : Node("game_observer_node") {
   // DECLARAÇÃO DOS PARÂMETROS (Obrigatório para evitar o crash
   this->declare_parameter("is_yellow_team", true);
+  this->declare_parameter("invert_sides", false);
   this->declare_parameter("team_size", 3);
   this->declare_parameter("map_resolution", 0.05);
   this->declare_parameter("robot_inflation_radius", 150.0);
@@ -16,6 +17,7 @@ GameObserverNode::GameObserverNode() : Node("game_observer_node") {
   this->declare_parameter("publisher_topic", "game_data");
 
   is_yellow_team = this->get_parameter("is_yellow_team").as_bool();
+  invert_sides = this->get_parameter("invert_sides").as_bool();
   team_size = this->get_parameter("team_size").as_int();
 
   // Publicadores para a Estratégia Oxebots
@@ -58,10 +60,23 @@ void GameObserverNode::vision_callback(const ssl_league_msgs::msg::VisionWrapper
     for (const auto & r : src) {
       oxebots_interfaces::msg::RobotGameData data;
       data.id = r.robot_id;
-      data.x = r.pose.position.x * 1000.0; // mm
-      data.y = r.pose.position.y * 1000.0; // mm
+      
+      float x = r.pose.position.x * 1000.0; // mm
+      float y = r.pose.position.y * 1000.0; // mm
       const auto & q = r.pose.orientation;
-      data.orientation = atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z));
+      float orientation = atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z));
+
+      if (invert_sides) {
+          x = -x;
+          y = -y;
+          orientation += M_PI;
+          while (orientation > M_PI) orientation -= 2.0 * M_PI;
+          while (orientation < -M_PI) orientation += 2.0 * M_PI;
+      }
+
+      data.x = x;
+      data.y = y;
+      data.orientation = orientation;
       dest[r.robot_id] = data; // Atualiza ID sem apagar os outros IDs
     }
   };
@@ -75,8 +90,14 @@ void GameObserverNode::vision_callback(const ssl_league_msgs::msg::VisionWrapper
   }
 
   if (!det.balls.empty()) {
-    ball_data.x = det.balls[0].pos.x * 1000.0;
-    ball_data.y = det.balls[0].pos.y * 1000.0;
+    float bx = det.balls[0].pos.x * 1000.0;
+    float by = det.balls[0].pos.y * 1000.0;
+    if (invert_sides) {
+        bx = -bx;
+        by = -by;
+    }
+    ball_data.x = bx;
+    ball_data.y = by;
     is_ball_present = true;
   }
   validate_data();

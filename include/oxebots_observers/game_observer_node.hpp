@@ -58,4 +58,5 @@ private:
   uint team_size;
   bool is_ball_present = false;
   bool is_yellow_team;
+  bool invert_sides;
 };
