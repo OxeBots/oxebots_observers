@@ -27,6 +27,12 @@ GameObserverNode::GameObserverNode() : Node("game_observer_node") {
   map_publisher = this->create_publisher<nav_msgs::msg::OccupancyGrid>(
     "map", rclcpp::QoS(1).transient_local().reliable());
 
+  ball_publisher = this->create_publisher<oxebots_interfaces::msg::BallPosition>(
+    "ball_data", get_parameter("topic_retention").as_int());
+  
+  robot_publisher = this->create_publisher<oxebots_interfaces::msg::RobotPosition>(
+    "robot_data", get_parameter("topic_retention").as_int());
+
   // Inscrições nos dados do Bridge (A-TEAM)
   vision_sub_ = this->create_subscription<ssl_league_msgs::msg::VisionWrapper>(
     get_parameter("vision_topic").as_string(), 10,
@@ -158,6 +164,8 @@ void GameObserverNode::publish_game_data() {
   for (const auto& pair : enemies) msg.robots.enemies.push_back(pair.second);
   msg.ball = ball_data;
   game_publisher->publish(msg);
+  ball_publisher->publish(msg.ball);
+  robot_publisher->publish(msg.robots);
 }
 
 void GameObserverNode::publish_occupancy_grid_map() {
