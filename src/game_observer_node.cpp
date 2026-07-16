@@ -33,6 +33,9 @@ GameObserverNode::GameObserverNode() : Node("game_observer_node") {
   robot_publisher = this->create_publisher<oxebots_interfaces::msg::RobotPosition>(
     "robot_data", get_parameter("topic_retention").as_int());
 
+  geometry_publisher = this->create_publisher<oxebots_interfaces::msg::SSLGeometryData>(
+    "/field_geometry", rclcpp::QoS(1).transient_local().reliable());
+
   // Inscrições nos dados do Bridge (A-TEAM)
   vision_sub_ = this->create_subscription<ssl_league_msgs::msg::VisionWrapper>(
     get_parameter("vision_topic").as_string(), 10,
@@ -48,13 +51,25 @@ GameObserverNode::GameObserverNode() : Node("game_observer_node") {
 GameObserverNode::~GameObserverNode() {}
 
 void GameObserverNode::vision_callback(const ssl_league_msgs::msg::VisionWrapper::SharedPtr msg) {
-  // 1. Geometria (Conversão Metros -> Milímetros)
   if (!msg->geometry.empty()) {
     const auto & geo = msg->geometry[0];
     oxebots_interfaces::msg::SSLGeometryData internal_geo;
     internal_geo.field.field_length = static_cast<int>(geo.field.field_length * 1000.0);
     internal_geo.field.field_width = static_cast<int>(geo.field.field_width * 1000.0);
+    internal_geo.field.goal_width = static_cast<int>(geo.field.goal_width * 1000.0);
+    internal_geo.field.goal_depth = static_cast<int>(geo.field.goal_depth * 1000.0);
+    internal_geo.field.boundary_width = static_cast<int>(geo.field.boundary_width * 1000.0);
+    internal_geo.field.penalty_area_depth = static_cast<int>(geo.field.penalty_area_depth * 1000.0);
+    internal_geo.field.penalty_area_width = static_cast<int>(geo.field.penalty_area_width * 1000.0);
+    internal_geo.field.center_circle_radius = static_cast<int>(geo.field.center_circle_radius * 1000.0);
+    internal_geo.field.line_thickness = static_cast<int>(geo.field.line_thickness * 1000.0);
+    internal_geo.field.goal_center_to_penalty_mark = static_cast<int>(geo.field.goal_center_to_penalty_mark * 1000.0);
+    internal_geo.field.goal_height = static_cast<int>(geo.field.goal_height * 1000.0);
+    internal_geo.field.ball_radius = geo.field.ball_radius * 1000.0;
+    internal_geo.field.max_robot_radius = geo.field.max_robot_radius * 1000.0;
+    
     last_geometry_data_ = internal_geo;
+    geometry_publisher->publish(internal_geo);
   }
 
   // 2. Detecção (FUSÃO DE CÂMERAS)[cite: 24]

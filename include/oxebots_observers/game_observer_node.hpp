@@ -43,6 +43,7 @@ private:
   rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr map_publisher;
   rclcpp::Publisher<oxebots_interfaces::msg::BallPosition>::SharedPtr ball_publisher;
   rclcpp::Publisher<oxebots_interfaces::msg::RobotPosition>::SharedPtr robot_publisher;
+  rclcpp::Publisher<oxebots_interfaces::msg::SSLGeometryData>::SharedPtr geometry_publisher;
 
   // Armazenamento Interno (em Milímetros, como o original)
   std::map<int, oxebots_interfaces::msg::RobotGameData> allies;
