@@ -62,4 +62,12 @@ private:
   bool is_ball_present = false;
   bool is_yellow_team;
   bool invert_sides;
+
+  // Confiança mínima (0.0-1.0) para aceitar uma detecção de bola como posição nova válida.
+  // Sem isso, uma detecção de baixa confiança (tipicamente a bola ocluída pela câmera pelo
+  // próprio robô, comum bem antes/durante o chute) era aceita como se fosse uma leitura real,
+  // congelando ball_data na última posição "vista" mesmo com a bola já tendo saído dali —
+  // visto no log como coordenadas de bola idênticas por 14s+ enquanto o robô ficava preso
+  // repetindo aproximação+chute contra um alvo fantasma.
+  double min_ball_confidence_;
 };

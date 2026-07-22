@@ -15,10 +15,16 @@ GameObserverNode::GameObserverNode() : Node("game_observer_node") {
   this->declare_parameter("vision_topic", "/ssl_vision_bridge/vision_messages");
   this->declare_parameter("referee_topic", "/gc_multicast_bridge/referee_messages");
   this->declare_parameter("publisher_topic", "game_data");
+  // 0.3 é um chute inicial (a escala típica de confidence da visão SSL costuma ir bem alta,
+  // 0.8-1.0, quando a bola está clara, e cair bastante quando parcialmente ocluída) — não pude
+  // testar contra dados reais desta sessão, então precisa de ajuste empírico observando o valor
+  // real de confidence nos frames onde a bola trava perto do robô.
+  this->declare_parameter("min_ball_confidence", 0.3);
 
   is_yellow_team = this->get_parameter("is_yellow_team").as_bool();
   invert_sides = this->get_parameter("invert_sides").as_bool();
   team_size = this->get_parameter("team_size").as_int();
+  min_ball_confidence_ = this->get_parameter("min_ball_confidence").as_double();
 
   // Publicadores para a Estratégia Oxebots
   game_publisher = this->create_publisher<oxebots_interfaces::msg::GameData>(
@@ -111,15 +117,28 @@ void GameObserverNode::vision_callback(const ssl_league_msgs::msg::VisionWrapper
   }
 
   if (!det.balls.empty()) {
-    float bx = det.balls[0].pos.x * 1000.0;
-    float by = det.balls[0].pos.y * 1000.0;
-    if (invert_sides) {
-        bx = -bx;
-        by = -by;
+    // Entre múltiplas bolas candidatas no mesmo frame, usa a de maior confiança em vez de
+    // sempre confiar cegamente em balls[0].
+    const auto* best_ball = &det.balls[0];
+    for (const auto& b : det.balls) {
+      if (b.confidence > best_ball->confidence) best_ball = &b;
     }
-    ball_data.x = bx;
-    ball_data.y = by;
-    is_ball_present = true;
+
+    if (best_ball->confidence >= min_ball_confidence_) {
+      float bx = best_ball->pos.x * 1000.0;
+      float by = best_ball->pos.y * 1000.0;
+      if (invert_sides) {
+          bx = -bx;
+          by = -by;
+      }
+      ball_data.x = bx;
+      ball_data.y = by;
+      ball_data.confidence = best_ball->confidence;
+      is_ball_present = true;
+    }
+    // Confiança abaixo do limiar: não atualiza ball_data. Mantém a última posição boa
+    // conhecida em vez de aceitar uma leitura de baixa confiança (bola ocluída) como se fosse
+    // uma posição nova e real.
   }
   validate_data();
 }
