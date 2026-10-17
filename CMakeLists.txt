@@ -36,15 +36,10 @@ ament_target_dependencies(game_observer_node
 add_executable(field_visualizer_node src/field_visualizer_node.cpp)
 ament_target_dependencies(field_visualizer_node 
   rclcpp 
+  oxebots_interfaces
   visualization_msgs 
   geometry_msgs
 )
-
-ament_target_dependencies(game_observer_node 
-  rclcpp oxebots_interfaces ssl_league_msgs nav_msgs tf2 tf2_geometry_msgs)
-
-ament_target_dependencies(field_visualizer_node 
-  rclcpp visualization_msgs geometry_msgs)
 
 install(TARGETS 
     game_observer_node 

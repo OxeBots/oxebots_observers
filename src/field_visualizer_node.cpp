@@ -1,33 +1,53 @@
 #include <rclcpp/rclcpp.hpp>
 #include <visualization_msgs/msg/marker.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
+#include "oxebots_interfaces/msg/ssl_geometry_data.hpp"
 #include <cmath>
+#include <optional>
 
 class FieldVisualizer : public rclcpp::Node {
 public:
     FieldVisualizer() : Node("field_visualizer_node") {
-        marker_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("/field_markers", rclcpp::QoS(1).transient_local());
-        timer_ = this->create_wall_timer(std::chrono::seconds(1), std::bind(&FieldVisualizer::publish_field, this));
+        marker_pub_ = this->create_publisher<visualization_msgs::msg::MarkerArray>(
+            "/field_markers", rclcpp::QoS(1).transient_local());
+
+        // Assina /field_geometry com QoS transient_local para receber as dimensões reais do campo (Entry, Div B ou Div A)
+        geometry_sub_ = this->create_subscription<oxebots_interfaces::msg::SSLGeometryData>(
+            "/field_geometry", rclcpp::QoS(1).transient_local().reliable(),
+            std::bind(&FieldVisualizer::geometry_callback, this, std::placeholders::_1));
+
+        timer_ = this->create_wall_timer(
+            std::chrono::seconds(1), std::bind(&FieldVisualizer::publish_field, this));
     }
 
 private:
+    void geometry_callback(const oxebots_interfaces::msg::SSLGeometryData::SharedPtr msg) {
+        last_geometry_ = msg->field;
+        publish_field();
+    }
+
     void publish_field() {
+        if (!last_geometry_.has_value()) {
+            return;
+        }
+
         visualization_msgs::msg::MarkerArray marker_array;
-        
-        // Configurações comuns
-        double field_length = 4.5;
-        double field_width = 3.0;
-        double center_circle_radius = 0.5;
-        double penalty_area_depth = 0.5;
-        double penalty_area_width = 1.35;
+
+        // Converte as dimensões recebidas de milímetros para metros (unidade padrão do RViz)
+        const auto& geo = last_geometry_.value();
+        double field_length = geo.field_length / 1000.0;
+        double field_width = geo.field_width / 1000.0;
+        double center_circle_radius = geo.center_circle_radius / 1000.0;
+        double penalty_area_depth = geo.penalty_area_depth / 1000.0;
+        double penalty_area_width = geo.penalty_area_width / 1000.0;
 
         // 1. Linhas Externas e Central
         marker_array.markers.push_back(create_line_marker(0, {
             {-field_length/2, -field_width/2}, {field_length/2, -field_width/2}, // Baixo
             {field_length/2, -field_width/2}, {field_length/2, field_width/2},   // Direita
-            {field_length/2, field_width/2}, {-field_length/2, field_width/2},  // Cima
+            {field_length/2, field_width/2}, {-field_length/2, field_width/2},   // Cima
             {-field_length/2, field_width/2}, {-field_length/2, -field_width/2}, // Esquerda
-            {0.0, -field_width/2}, {0.0, field_width/2}                         // Central
+            {0.0, -field_width/2}, {0.0, field_width/2}                          // Central
         }));
 
         // 2. Círculo Central
@@ -88,7 +108,9 @@ private:
         return marker;
     }
 
+    std::optional<oxebots_interfaces::msg::SSLFieldSize> last_geometry_;
     rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr marker_pub_;
+    rclcpp::Subscription<oxebots_interfaces::msg::SSLGeometryData>::SharedPtr geometry_sub_;
     rclcpp::TimerBase::SharedPtr timer_;
 };
 
