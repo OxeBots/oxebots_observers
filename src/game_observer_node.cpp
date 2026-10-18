@@ -60,19 +60,75 @@ void GameObserverNode::vision_callback(const ssl_league_msgs::msg::VisionWrapper
   if (!msg->geometry.empty()) {
     const auto & geo = msg->geometry[0];
     oxebots_interfaces::msg::SSLGeometryData internal_geo;
-    internal_geo.field.field_length = static_cast<int>(geo.field.field_length * 1000.0);
-    internal_geo.field.field_width = static_cast<int>(geo.field.field_width * 1000.0);
-    internal_geo.field.goal_width = static_cast<int>(geo.field.goal_width * 1000.0);
-    internal_geo.field.goal_depth = static_cast<int>(geo.field.goal_depth * 1000.0);
-    internal_geo.field.boundary_width = static_cast<int>(geo.field.boundary_width * 1000.0);
-    internal_geo.field.penalty_area_depth = static_cast<int>(geo.field.penalty_area_depth * 1000.0);
-    internal_geo.field.penalty_area_width = static_cast<int>(geo.field.penalty_area_width * 1000.0);
-    internal_geo.field.center_circle_radius = static_cast<int>(geo.field.center_circle_radius * 1000.0);
-    internal_geo.field.line_thickness = static_cast<int>(geo.field.line_thickness * 1000.0);
-    internal_geo.field.goal_center_to_penalty_mark = static_cast<int>(geo.field.goal_center_to_penalty_mark * 1000.0);
-    internal_geo.field.goal_height = static_cast<int>(geo.field.goal_height * 1000.0);
+    internal_geo.field.field_length = static_cast<int>( std::lround(geo.field.field_length * 1000.0) );
+    internal_geo.field.field_width = static_cast<int>( std::lround(geo.field.field_width * 1000.0) );
+    internal_geo.field.goal_width = static_cast<int>( std::lround(geo.field.goal_width * 1000.0) );
+    internal_geo.field.goal_depth = static_cast<int>( std::lround(geo.field.goal_depth * 1000.0) );
+    internal_geo.field.boundary_width = static_cast<int>( std::lround(geo.field.boundary_width * 1000.0) );
+    internal_geo.field.penalty_area_depth = static_cast<int>( std::lround(geo.field.penalty_area_depth * 1000.0) );
+    internal_geo.field.penalty_area_width = static_cast<int>( std::lround(geo.field.penalty_area_width * 1000.0) );
+    internal_geo.field.center_circle_radius = static_cast<int>( std::lround(geo.field.center_circle_radius * 1000.0) );
+    internal_geo.field.line_thickness = static_cast<int>( std::lround(geo.field.line_thickness * 1000.0) );
+    internal_geo.field.goal_center_to_penalty_mark = static_cast<int>( std::lround(geo.field.goal_center_to_penalty_mark * 1000.0) );
+    internal_geo.field.goal_height = static_cast<int>( std::lround(geo.field.goal_height * 1000.0) );
     internal_geo.field.ball_radius = geo.field.ball_radius * 1000.0;
     internal_geo.field.max_robot_radius = geo.field.max_robot_radius * 1000.0;
+
+    // O grSim e algumas versões do SSL-Vision enviam os segmentos de linha (field_lines / field_arcs),
+    // mas deixam os campos opcionais penalty_area_depth, penalty_area_width e center_circle_radius zerados.
+    if (internal_geo.field.penalty_area_depth <= 0 || internal_geo.field.penalty_area_width <= 0) {
+      for (const auto & line : geo.field.field_lines) {
+        if (line.name == "LeftPenaltyStretch" || line.name == "RightPenaltyStretch") {
+          int width_mm = static_cast<int>(std::lround(std::abs(line.p2.y - line.p1.y) * 1000.0));
+          int depth_mm = static_cast<int>(std::lround((geo.field.field_length / 2.0 - std::abs(line.p1.x)) * 1000.0));
+          if (internal_geo.field.penalty_area_width <= 0 && width_mm > 0) {
+            internal_geo.field.penalty_area_width = width_mm;
+          }
+          if (internal_geo.field.penalty_area_depth <= 0 && depth_mm > 0) {
+            internal_geo.field.penalty_area_depth = depth_mm;
+          }
+        } else if (line.name == "LeftFieldLeftPenaltyStretch" || line.name == "LeftFieldRightPenaltyStretch" ||
+                   line.name == "RightFieldLeftPenaltyStretch" || line.name == "RightFieldRightPenaltyStretch") {
+          int depth_mm = static_cast<int>(std::lround(std::abs(line.p2.x - line.p1.x) * 1000.0));
+          int width_mm = static_cast<int>(std::lround(2.0 * std::abs(line.p1.y) * 1000.0));
+          if (internal_geo.field.penalty_area_depth <= 0 && depth_mm > 0) {
+            internal_geo.field.penalty_area_depth = depth_mm;
+          }
+          if (internal_geo.field.penalty_area_width <= 0 && width_mm > 0) {
+            internal_geo.field.penalty_area_width = width_mm;
+          }
+        }
+      }
+    }
+
+    if (internal_geo.field.center_circle_radius <= 0) {
+      for (const auto & arc : geo.field.field_arcs) {
+        if (arc.name == "CenterCircle" && arc.radius > 0.0f) {
+          internal_geo.field.center_circle_radius = static_cast<int>(std::lround(arc.radius * 1000.0));
+          break;
+        }
+      }
+    }
+
+    // Fallback proporcional pela regra oficial da SSL caso nem os campos opcionais nem field_lines venham preenchidos
+    if (internal_geo.field.penalty_area_depth <= 0 || internal_geo.field.penalty_area_width <= 0) {
+      if (internal_geo.field.field_length <= 5500) {
+        // SSL Entry League (ex: 4500 x 3000 mm)
+        if (internal_geo.field.penalty_area_depth <= 0) internal_geo.field.penalty_area_depth = 500;
+        if (internal_geo.field.penalty_area_width <= 0) internal_geo.field.penalty_area_width = 1350;
+      } else if (internal_geo.field.field_length <= 10500) {
+        // SSL Division B (ex: 9000 x 6000 mm)
+        if (internal_geo.field.penalty_area_depth <= 0) internal_geo.field.penalty_area_depth = 1000;
+        if (internal_geo.field.penalty_area_width <= 0) internal_geo.field.penalty_area_width = 2000;
+      } else {
+        // SSL Division A (ex: 12000 x 9000 mm)
+        if (internal_geo.field.penalty_area_depth <= 0) internal_geo.field.penalty_area_depth = 1800;
+        if (internal_geo.field.penalty_area_width <= 0) internal_geo.field.penalty_area_width = 3600;
+      }
+    }
+    if (internal_geo.field.center_circle_radius <= 0) {
+      internal_geo.field.center_circle_radius = 500;
+    }
     
     last_geometry_data_ = internal_geo;
     geometry_publisher->publish(internal_geo);
