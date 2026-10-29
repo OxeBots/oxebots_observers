@@ -13,6 +13,7 @@
   <depend>rclcpp</depend>
   <depend>oxebots_interfaces</depend>
   <depend>ssl_league_msgs</depend> <!-- Dependência do novo bridge -->
+  <depend>geometry_msgs</depend>
   <depend>nav_msgs</depend>
   <depend>visualization_msgs</depend>
   <depend>tf2</depend>
