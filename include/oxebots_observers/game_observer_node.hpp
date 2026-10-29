@@ -50,8 +50,12 @@ private:
   std::map<int, oxebots_interfaces::msg::RobotGameData> enemies;
   std::map<int, rclcpp::Time> allies_last_seen_;
   std::map<int, rclcpp::Time> enemies_last_seen_;
+  std::map<int, uint32_t> allies_last_camera_id_;
+  std::map<int, uint32_t> enemies_last_camera_id_;
   oxebots_interfaces::msg::BallPosition ball_data;
   std::optional<rclcpp::Time> last_ball_seen_time_;
+  std::optional<uint32_t> last_ball_camera_id_;
+  std::optional<rclcpp::Time> last_publish_time_;
   std::optional<oxebots_interfaces::msg::SSLGeometryData> last_geometry_data_;
 
   // Callbacks e Lógica

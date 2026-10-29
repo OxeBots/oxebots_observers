@@ -24,7 +24,7 @@ GameObserverNode::GameObserverNode(const rclcpp::NodeOptions & options)
   this->declare_parameter("min_robot_confidence", 0.3);
   this->declare_parameter("robot_expiration_ms", 500.0);
   this->declare_parameter("ball_expiration_ms", 500.0);
-  this->declare_parameter("multi_camera_window_ms", 25.0);
+  this->declare_parameter("multi_camera_window_ms", 8.0);
 
   is_yellow_team = this->get_parameter("is_yellow_team").as_bool();
   invert_sides = this->get_parameter("invert_sides").as_bool();
@@ -152,58 +152,67 @@ void GameObserverNode::vision_callback(const ssl_league_msgs::msg::VisionWrapper
 
   // Seleciona, dentro deste pacote (que pode conter múltiplos VisionDetectionFrame de diferentes
   // câmeras), a detecção de maior confiança para cada robô aliado e adversário.
-  std::map<int, const ssl_league_msgs::msg::VisionDetectionRobot *> best_allies_in_packet;
-  std::map<int, const ssl_league_msgs::msg::VisionDetectionRobot *> best_enemies_in_packet;
+  struct BestRobotCandidate {
+    const ssl_league_msgs::msg::VisionDetectionRobot * robot = nullptr;
+    uint32_t camera_id = 0;
+  };
+  std::map<int, BestRobotCandidate> best_allies_in_packet;
+  std::map<int, BestRobotCandidate> best_enemies_in_packet;
   const ssl_league_msgs::msg::VisionDetectionBall * best_ball = nullptr;
+  uint32_t best_ball_camera_id = 0;
 
   auto collect_best_robots = [&](
       const std::vector<ssl_league_msgs::msg::VisionDetectionRobot> & src,
-      std::map<int, const ssl_league_msgs::msg::VisionDetectionRobot *> & best_map) {
+      uint32_t cam_id,
+      std::map<int, BestRobotCandidate> & best_map) {
     for (const auto & r : src) {
       if (r.confidence < min_robot_confidence_) {
         continue;
       }
       int id = static_cast<int>(r.robot_id);
       auto it = best_map.find(id);
-      if (it == best_map.end() || r.confidence >= it->second->confidence) {
-        best_map[id] = &r;
+      if (it == best_map.end() || r.confidence >= it->second.robot->confidence) {
+        best_map[id] = BestRobotCandidate{&r, cam_id};
       }
     }
   };
 
   for (const auto & det : msg->detection) {
     if (is_yellow_team) {
-      collect_best_robots(det.robots_yellow, best_allies_in_packet);
-      collect_best_robots(det.robots_blue, best_enemies_in_packet);
+      collect_best_robots(det.robots_yellow, det.camera_id, best_allies_in_packet);
+      collect_best_robots(det.robots_blue, det.camera_id, best_enemies_in_packet);
     } else {
-      collect_best_robots(det.robots_blue, best_allies_in_packet);
-      collect_best_robots(det.robots_yellow, best_enemies_in_packet);
+      collect_best_robots(det.robots_blue, det.camera_id, best_allies_in_packet);
+      collect_best_robots(det.robots_yellow, det.camera_id, best_enemies_in_packet);
     }
 
     for (const auto & b : det.balls) {
       if (best_ball == nullptr || b.confidence > best_ball->confidence) {
         best_ball = &b;
+        best_ball_camera_id = det.camera_id;
       }
     }
   }
 
   auto apply_robot_updates = [&](
-      const std::map<int, const ssl_league_msgs::msg::VisionDetectionRobot *> & best_map,
+      const std::map<int, BestRobotCandidate> & best_map,
       std::map<int, oxebots_interfaces::msg::RobotGameData> & dest,
-      std::map<int, rclcpp::Time> & last_seen_map) {
-    for (const auto & [id, r_ptr] : best_map) {
-      const auto & r = *r_ptr;
+      std::map<int, rclcpp::Time> & last_seen_map,
+      std::map<int, uint32_t> & last_cam_map) {
+    for (const auto & [id, cand] : best_map) {
+      const auto & r = *cand.robot;
 
-      // Se outra câmera reportou este mesmo robô dentro da janela multi-câmera com
-      // confiança estritamente maior, preserva a pose de maior confiança e apenas renova o stamp.
+      // Se OUTRA câmera (overlap) reportou este mesmo robô dentro da janela multi-câmera com
+      // confiança estritamente maior, preserva a pose de maior confiança sem estender a janela.
+      // Se for a MESMA câmera em um novo frame, sempre atualiza para nunca congelar a pose.
       auto seen_it = last_seen_map.find(id);
       auto dest_it = dest.find(id);
-      if (seen_it != last_seen_map.end() && dest_it != dest.end()) {
+      auto cam_it = last_cam_map.find(id);
+      if (seen_it != last_seen_map.end() && dest_it != dest.end() && cam_it != last_cam_map.end()) {
         const double age_ms = (now_time - seen_it->second).seconds() * 1000.0;
-        if (age_ms >= 0.0 && age_ms <= multi_camera_window_ms_ &&
+        const bool different_camera = (cam_it->second != cand.camera_id);
+        if (different_camera && age_ms >= 0.0 && age_ms <= multi_camera_window_ms_ &&
             dest_it->second.confidence > r.confidence) {
-          seen_it->second = now_time;
-          dest_it->second.stamp = now_time;
           continue;
         }
       }
@@ -232,17 +241,19 @@ void GameObserverNode::vision_callback(const ssl_league_msgs::msg::VisionWrapper
       data.stamp = now_time;
       dest[id] = data;
       last_seen_map[id] = now_time;
+      last_cam_map[id] = cand.camera_id;
     }
   };
 
-  apply_robot_updates(best_allies_in_packet, allies, allies_last_seen_);
-  apply_robot_updates(best_enemies_in_packet, enemies, enemies_last_seen_);
+  apply_robot_updates(best_allies_in_packet, allies, allies_last_seen_, allies_last_camera_id_);
+  apply_robot_updates(best_enemies_in_packet, enemies, enemies_last_seen_, enemies_last_camera_id_);
 
   if (best_ball != nullptr && best_ball->confidence >= min_ball_confidence_) {
     bool keep_previous_higher_conf = false;
-    if (last_ball_seen_time_.has_value()) {
+    if (last_ball_seen_time_.has_value() && last_ball_camera_id_.has_value()) {
       const double ball_age_ms = (now_time - *last_ball_seen_time_).seconds() * 1000.0;
-      if (ball_age_ms >= 0.0 && ball_age_ms <= multi_camera_window_ms_ &&
+      const bool different_camera = (*last_ball_camera_id_ != best_ball_camera_id);
+      if (different_camera && ball_age_ms >= 0.0 && ball_age_ms <= multi_camera_window_ms_ &&
           ball_data.confidence > best_ball->confidence) {
         keep_previous_higher_conf = true;
       }
@@ -259,14 +270,15 @@ void GameObserverNode::vision_callback(const ssl_league_msgs::msg::VisionWrapper
       ball_data.y = by;
       ball_data.z = 0.0f;
       ball_data.confidence = best_ball->confidence;
+      ball_data.stamp = now_time;
+      last_ball_seen_time_ = now_time;
+      last_ball_camera_id_ = best_ball_camera_id;
+      is_ball_present = true;
     }
-    ball_data.stamp = now_time;
-    last_ball_seen_time_ = now_time;
-    is_ball_present = true;
   }
   // Confiança abaixo do limiar ou sem bola no frame: não atualiza (x, y) de ball_data,
   // mantendo a última posição boa conhecida, mas segue para validate_data() para expirar
-  // robôs e publicar /game_data mesmo sem bola.
+  // robôs e publicar /game_data em 60 Hz mesmo se a bola sumir.
 
   validate_data();
 }
@@ -315,7 +327,8 @@ void GameObserverNode::referee_callback(const ssl_league_msgs::msg::Referee::Sha
 void GameObserverNode::prune_expired_data(const rclcpp::Time & now_time) {
   auto prune_map = [&](
       std::map<int, oxebots_interfaces::msg::RobotGameData> & robots_map,
-      std::map<int, rclcpp::Time> & last_seen_map) {
+      std::map<int, rclcpp::Time> & last_seen_map,
+      std::map<int, uint32_t> & last_cam_map) {
     for (auto it = robots_map.begin(); it != robots_map.end(); ) {
       auto seen_it = last_seen_map.find(it->first);
       if (seen_it == last_seen_map.end() ||
@@ -323,6 +336,7 @@ void GameObserverNode::prune_expired_data(const rclcpp::Time & now_time) {
         if (seen_it != last_seen_map.end()) {
           last_seen_map.erase(seen_it);
         }
+        last_cam_map.erase(it->first);
         it = robots_map.erase(it);
       } else {
         ++it;
@@ -330,8 +344,8 @@ void GameObserverNode::prune_expired_data(const rclcpp::Time & now_time) {
     }
   };
 
-  prune_map(allies, allies_last_seen_);
-  prune_map(enemies, enemies_last_seen_);
+  prune_map(allies, allies_last_seen_, allies_last_camera_id_);
+  prune_map(enemies, enemies_last_seen_, enemies_last_camera_id_);
 
   if (last_ball_seen_time_.has_value()) {
     const double ball_age_ms = (now_time - *last_ball_seen_time_).seconds() * 1000.0;
@@ -344,10 +358,31 @@ void GameObserverNode::prune_expired_data(const rclcpp::Time & now_time) {
 }
 
 void GameObserverNode::validate_data() {
-  prune_expired_data(this->now());
-  publish_game_data();
-  if (last_geometry_data_.has_value()) {
-    publish_occupancy_grid_map();
+  const rclcpp::Time now_time = this->now();
+  prune_expired_data(now_time);
+
+  // Publica sincronizado com a câmera que vê a bola (60 Hz em campo com 4 câmeras).
+  // Se a bola não é vista há >= 35 ms (ou nunca foi vista), faz fallback publicando a no
+  // máximo ~60 Hz (>= 15 ms entre publicações) para não inundar Kalman, estratégia e D* a 240 Hz.
+  bool should_publish = is_ball_present;
+  if (!should_publish) {
+    const bool ball_recently_seen = last_ball_seen_time_.has_value() &&
+      ((now_time - *last_ball_seen_time_).seconds() * 1000.0 < 35.0);
+    if (!ball_recently_seen) {
+      const bool publish_interval_elapsed = !last_publish_time_.has_value() ||
+        ((now_time - *last_publish_time_).seconds() * 1000.0 >= 15.0);
+      if (publish_interval_elapsed) {
+        should_publish = true;
+      }
+    }
+  }
+
+  if (should_publish) {
+    last_publish_time_ = now_time;
+    publish_game_data();
+    if (last_geometry_data_.has_value()) {
+      publish_occupancy_grid_map();
+    }
   }
   is_ball_present = false;
 }

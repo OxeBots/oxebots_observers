@@ -185,3 +185,37 @@ TEST_F(GameObserverTest, ExpiresUnseenRobotsAfterTimeout) {
   ASSERT_EQ(gd.robots.allies.size(), 1u);
   EXPECT_EQ(gd.robots.allies[0].id, 0u);
 }
+
+TEST_F(GameObserverTest, SameCameraDecreasingConfidenceStillUpdatesPoseAndBall) {
+  // Frame 1 da câmera 0 com alta confiança (0.98)
+  ssl_league_msgs::msg::VisionWrapper w1;
+  ssl_league_msgs::msg::VisionDetectionFrame f1;
+  f1.camera_id = 0;
+  f1.robots_yellow.push_back(makeRobot(1, -1.0f, 0.0f, 0.98f));
+  f1.balls.push_back(makeBall(-0.5f, 0.0f, 0.98f));
+  w1.detection.push_back(f1);
+
+  vision_pub_->publish(w1);
+  spinFor(std::chrono::milliseconds(15));
+
+  // Frame 2 da MESMA câmera 0 dentro de multi_camera_window_ms (50ms no teste),
+  // mas com confiança menor (0.85) pois o robô e a bola se afastaram do centro da câmera.
+  // A posição DEVE atualizar normalmente e nunca congelar!
+  ssl_league_msgs::msg::VisionWrapper w2;
+  ssl_league_msgs::msg::VisionDetectionFrame f2;
+  f2.camera_id = 0;
+  f2.robots_yellow.push_back(makeRobot(1, 1.5f, 0.8f, 0.85f));
+  f2.balls.push_back(makeBall(2.0f, 1.2f, 0.85f));
+  w2.detection.push_back(f2);
+
+  vision_pub_->publish(w2);
+  spinFor(std::chrono::milliseconds(20));
+
+  ASSERT_FALSE(received_msgs_.empty());
+  const auto & gd = received_msgs_.back();
+  ASSERT_EQ(gd.robots.allies.size(), 1u);
+  EXPECT_NEAR(gd.robots.allies[0].x, 1500.0f, 1e-2f);
+  EXPECT_NEAR(gd.robots.allies[0].y, 800.0f, 1e-2f);
+  EXPECT_NEAR(gd.ball.x, 2000.0f, 1e-2f);
+  EXPECT_NEAR(gd.ball.y, 1200.0f, 1e-2f);
+}
