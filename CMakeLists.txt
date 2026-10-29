@@ -49,4 +49,21 @@ install(TARGETS
 
 install(DIRECTORY include/ DESTINATION include)
 
+if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_game_observer
+    test/test_game_observer.cpp
+    src/game_observer_node.cpp
+  )
+  target_compile_definitions(test_game_observer PRIVATE OXEBOTS_OBSERVERS_NO_MAIN)
+  ament_target_dependencies(test_game_observer
+    rclcpp
+    oxebots_interfaces
+    ssl_league_msgs
+    nav_msgs
+    tf2
+    tf2_geometry_msgs
+  )
+endif()
+
 ament_package()

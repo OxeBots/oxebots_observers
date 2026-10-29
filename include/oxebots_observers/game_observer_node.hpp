@@ -30,7 +30,7 @@
 
 class GameObserverNode : public rclcpp::Node {
 public:
-  GameObserverNode();
+  explicit GameObserverNode(const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
   ~GameObserverNode();
 
 private:
@@ -48,12 +48,16 @@ private:
   // Armazenamento Interno (em Milímetros, como o original)
   std::map<int, oxebots_interfaces::msg::RobotGameData> allies;
   std::map<int, oxebots_interfaces::msg::RobotGameData> enemies;
+  std::map<int, rclcpp::Time> allies_last_seen_;
+  std::map<int, rclcpp::Time> enemies_last_seen_;
   oxebots_interfaces::msg::BallPosition ball_data;
+  std::optional<rclcpp::Time> last_ball_seen_time_;
   std::optional<oxebots_interfaces::msg::SSLGeometryData> last_geometry_data_;
 
   // Callbacks e Lógica
   void vision_callback(const ssl_league_msgs::msg::VisionWrapper::SharedPtr msg);
   void referee_callback(const ssl_league_msgs::msg::Referee::SharedPtr msg);
+  void prune_expired_data(const rclcpp::Time & now_time);
   void validate_data();
   void publish_game_data();
   void publish_occupancy_grid_map();
@@ -70,4 +74,17 @@ private:
   // visto no log como coordenadas de bola idênticas por 14s+ enquanto o robô ficava preso
   // repetindo aproximação+chute contra um alvo fantasma.
   double min_ball_confidence_;
+
+  // Confiança mínima (0.0-1.0) para aceitar uma detecção de robô como pose nova válida.
+  double min_robot_confidence_;
+
+  // Tempo máximo (ms) sem detecção antes de expirar/remover um robô do mapa de aliados/adversários.
+  double robot_expiration_ms_;
+
+  // Tempo máximo (ms) sem detecção válida da bola antes de zerar sua confidence no GameData.
+  double ball_expiration_ms_;
+
+  // Janela temporal (ms) para fusão multi-câmera entre frames quase simultâneos (~60 Hz):
+  // dentro dessa janela, uma detecção de menor confiança não sobrescreve outra de maior confiança.
+  double multi_camera_window_ms_;
 };
