@@ -122,12 +122,17 @@ void GameObserverNode::vision_callback(const ssl_league_msgs::msg::VisionWrapper
     }
 
     // Fallback proporcional pela regra oficial da SSL caso nem os campos opcionais nem field_lines venham preenchidos
-    if (internal_geo.field.penalty_area_depth <= 0 || internal_geo.field.penalty_area_width <= 0) {
-      if (internal_geo.field.field_length <= 5500) {
-        // SSL Entry League (ex: 4500 x 3000 mm)
-        if (internal_geo.field.penalty_area_depth <= 0) internal_geo.field.penalty_area_depth = 500;
-        if (internal_geo.field.penalty_area_width <= 0) internal_geo.field.penalty_area_width = 1350;
-      } else if (internal_geo.field.field_length <= 10500) {
+    // Também corrige o caso comum no grSim onde o campo foi ajustado para SSL-EL (4500 x 3000 mm),
+    // mas as linhas da área permaneceram no padrão da Division B (1000 x 2000 mm).
+    if (internal_geo.field.field_length <= 5500) {
+      if (internal_geo.field.penalty_area_depth <= 0 || internal_geo.field.penalty_area_depth > 600) {
+        internal_geo.field.penalty_area_depth = 500;
+      }
+      if (internal_geo.field.penalty_area_width <= 0 || internal_geo.field.penalty_area_width > 1500) {
+        internal_geo.field.penalty_area_width = 1350;
+      }
+    } else if (internal_geo.field.penalty_area_depth <= 0 || internal_geo.field.penalty_area_width <= 0) {
+      if (internal_geo.field.field_length <= 10500) {
         // SSL Division B (ex: 9000 x 6000 mm)
         if (internal_geo.field.penalty_area_depth <= 0) internal_geo.field.penalty_area_depth = 1000;
         if (internal_geo.field.penalty_area_width <= 0) internal_geo.field.penalty_area_width = 2000;
