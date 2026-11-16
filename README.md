@@ -11,19 +11,19 @@ O `oxebots_observers` consome os pacotes brutos das câmeras SSL-Vision e do Gam
 ### 1.1 `game_observer_node`
 Nó principal de percepção e fusão sensorial.
 - **Assinaturas (Subscribers):**
-  - `/ssl_vision_bridge/vision_messages` (`ssl_ros_bridge/msg/SSLVisionData`): Pacotes contendo as detecções de todas as câmeras de campo.
-  - `/gc_multicast_bridge/referee_messages` (`ssl_ros_bridge/msg/SSLRefereeData`): Mensagens oficiais da partida enviadas pelo árbitro.
+  - `/ssl_vision_bridge/vision_messages` (`ssl_league_msgs/msg/VisionWrapper`): Pacotes contendo as detecções de todas as câmeras de campo e geometria.
+  - `/gc_multicast_bridge/referee_messages` (`ssl_league_msgs/msg/Referee`): Mensagens oficiais da partida enviadas pelo árbitro.
 - **Publicações (Publishers):**
   - `game_data` (`oxebots_interfaces/msg/GameData`): Estado completo do jogo (bola e robôs de ambos os times), publicado a uma taxa máxima controlada de 60 Hz.
   - `ball_data` (`oxebots_interfaces/msg/BallPosition`): Posição consolidada e confiança da bola.
-  - `robot_data` (`oxebots_interfaces/msg/RobotGameData`): Dados de pose de cada robô identificado em campo.
-  - `/field_geometry` (`oxebots_interfaces/msg/SSLGeometryData`): Dimensões do campo e posições dos gols e linhas.
-  - `map` (`nav_msgs/msg/OccupancyGrid`): Grade de ocupação com raio de inflação ao redor dos robôs para planejadores como D* Lite.
+  - `robot_data` (`oxebots_interfaces/msg/RobotPosition`): Listas de poses dos robôs aliados e adversários (`RobotGameData[]`) identificados em campo.
+  - `/field_geometry` (`oxebots_interfaces/msg/SSLGeometryData`, QoS `transient_local`): Dimensões do campo e posições dos gols e linhas.
+  - `map` (`nav_msgs/msg/OccupancyGrid`, QoS `transient_local`): Grade de ocupação com raio de inflação ao redor dos robôs para planejadores como D* Lite.
 
 ### 1.2 `field_visualizer_node`
-Nó de visualização para depuração e exibição gráfica no RViz2.
-- **Assinaturas:** `game_data` (`oxebots_interfaces/msg/GameData`).
-- **Publicações:** `/field_markers` (`visualization_msgs/msg/MarkerArray`).
+Nó de visualização para depuração e exibição gráfica das linhas do campo no RViz2.
+- **Assinaturas:** `/field_geometry` (`oxebots_interfaces/msg/SSLGeometryData`, QoS `transient_local`).
+- **Publicações:** `/field_markers` (`visualization_msgs/msg/MarkerArray`, QoS `transient_local`).
 
 ---
 
